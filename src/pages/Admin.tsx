@@ -16,6 +16,11 @@ import type {
 
 const LAST_OPTIONS = [10, 25, 50, 100, 250, 500, 1000] as const;
 const REFRESH_INTERVAL_MS = 5_000;
+// Static allow-list mirroring the backend; no containers-list endpoint exists.
+const FEED_RANGE_CONTAINERS = [
+  "Products", "ProductsHpk", "Sellers", "Customers", "Orders",
+  "Reviews", "Cart", "Inventory", "ProductVectors", "ChangeFeedLease"
+] as const;
 
 export function AdminPage() {
   return (
@@ -266,43 +271,32 @@ function DiagnosticsRow({ entry }: { entry: DiagnosticsEntry }) {
   const failed = isFailure(entry);
 
   return (
-    <>
-      <tr className={`border-t border-slate-100 ${failed ? "bg-red-50" : ""}`}>
-        <td className="py-1 pr-3 font-mono text-[11px] text-slate-600">
-          {entry.timestamp.replace("T", " ").replace(/\.\d+Z$/, "Z")}
-        </td>
-        <td className="py-1 pr-3">{entry.operation}</td>
-        <td className="py-1 pr-3 font-mono text-[11px]">{container}</td>
-        <td className="py-1 pr-3">
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusPalette(entry.statusCode)}`}>
-            {entry.statusCode ?? "?"}
-          </span>
-        </td>
-        <td className="py-1 pr-3 text-right tabular-nums font-mono">
-          {entry.requestCharge?.toFixed(2) ?? "—"}
-        </td>
-        <td className="py-1 pr-3 text-right tabular-nums font-mono">
-          {entry.durationMs?.toFixed(2) ?? "—"}
-        </td>
-        <td className="py-1 pr-3 text-right tabular-nums">{retryCount ?? 0}</td>
-        <td className="py-1 text-[11px] text-slate-600">
-          {regions?.join(", ") || "—"}
-        </td>
-      </tr>
-    </>
+    <tr className={`border-t border-slate-100 ${failed ? "bg-red-50" : ""}`}>
+      <td className="py-1 pr-3 font-mono text-[11px] text-slate-600">
+        {entry.timestamp.replace("T", " ").replace(/\.\d+Z$/, "Z")}
+      </td>
+      <td className="py-1 pr-3">{entry.operation}</td>
+      <td className="py-1 pr-3 font-mono text-[11px]">{container}</td>
+      <td className="py-1 pr-3">
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusPalette(entry.statusCode)}`}>
+          {entry.statusCode ?? "?"}
+        </span>
+      </td>
+      <td className="py-1 pr-3 text-right tabular-nums font-mono">
+        {entry.requestCharge?.toFixed(2) ?? "—"}
+      </td>
+      <td className="py-1 pr-3 text-right tabular-nums font-mono">
+        {entry.durationMs?.toFixed(2) ?? "—"}
+      </td>
+      <td className="py-1 pr-3 text-right tabular-nums">{retryCount ?? 0}</td>
+      <td className="py-1 text-[11px] text-slate-600">
+        {regions?.join(", ") || "—"}
+      </td>
+    </tr>
   );
 }
 
 function FeedRangesPanel() {
-  const { data: caps } = useCapabilities();
-  const containers = useMemo(() => {
-    // We don't have a containers list endpoint; the capabilities manifest doesn't
-    // either. Seed common ones — the backend allow-list rejects anything else.
-    return [
-      "Products", "ProductsHpk", "Sellers", "Customers", "Orders",
-      "Reviews", "Cart", "Inventory", "ProductVectors", "ChangeFeedLease"
-    ];
-  }, [caps]);
   const [container, setContainer] = useState<string>("Products");
   const query = useFeedRanges(container);
 
@@ -323,13 +317,14 @@ function FeedRangesPanel() {
             onChange={(e) => setContainer(e.target.value)}
             className="mt-1 w-56 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-mono"
           >
-            {containers.map((c) => (
+          {FEED_RANGE_CONTAINERS.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </label>
       </form>
 
+      {query.isLoading && <p className="mt-2 text-sm text-slate-500">Loading…</p>}
       {query.error && (
         <div className="mt-3">
           <ErrorPanel title="Feed ranges" message={String(query.error.message)} />
@@ -385,6 +380,7 @@ function CachesPanel() {
         allow-listed container — the SDK doesn't expose its internal caches publicly.
       </p>
 
+      {query.isLoading && <p className="mt-2 text-sm text-slate-500">Loading…</p>}
       {query.error && (
         <div className="mt-3">
           <ErrorPanel title="Cache snapshot" message={String(query.error.message)} />
