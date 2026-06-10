@@ -1,12 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { useCart, useCartUpsert } from "../hooks/useCart";
+import { useSelectedSdk } from "../hooks/useCapabilities";
 import { setCustomerId, useCustomerId } from "../hooks/useCustomerId";
 import type { Cart as CartDoc, CartItem } from "../api/types";
 
 export function CartPage() {
   const customerId = useCustomerId();
+  const sdk = useSelectedSdk();
+  const queryClient = useQueryClient();
   const [draftCustomerId, setDraftCustomerId] = useState(customerId);
   useEffect(() => setDraftCustomerId(customerId), [customerId]);
 
@@ -55,7 +59,8 @@ export function CartPage() {
   }
 
   function setQty(productId: string, qty: number) {
-    setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, qty } : i)));
+    const nextQty = Number.isInteger(qty) && qty > 0 ? qty : 1;
+    setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, qty: nextQty } : i)));
   }
 
   function save() {
@@ -251,7 +256,9 @@ export function CartPage() {
             </button>
             <button
               type="button"
-              onClick={() => cartQuery.refetch()}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["cart", sdk, customerId] });
+              }}
               disabled={cartQuery.isFetching}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
             >

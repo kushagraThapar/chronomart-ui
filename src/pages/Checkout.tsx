@@ -184,7 +184,7 @@ export function CheckoutPage() {
                           onChange={(e) =>
                             setUnitPrices((p) => ({
                               ...p,
-                              [ci.productId]: Number(e.target.value)
+                              [ci.productId]: parseUnitPrice(e.target.value)
                             }))
                           }
                           className="w-28 rounded border border-slate-300 px-2 py-1 text-sm"
@@ -318,4 +318,9 @@ function generateOrderId(): string {
     return `ord-${crypto.randomUUID()}`;
   }
   return `ord-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function parseUnitPrice(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
