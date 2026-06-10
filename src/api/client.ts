@@ -21,6 +21,14 @@ export interface ApiError extends Error {
   sdk: Sdk;
 }
 
+export function isApiError(e: unknown): e is ApiError {
+  return (
+    e instanceof Error &&
+    typeof (e as ApiError).status === "number" &&
+    "sdk" in (e as ApiError)
+  );
+}
+
 export async function api<T = unknown>(
   path: string,
   init: RequestInit & { sdk?: Sdk } = {}
