@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { useProductsInfinite } from "../hooks/useProducts";
 import type { Product } from "../api/types";
@@ -8,9 +8,18 @@ import { formatPrice } from "../lib/format";
 const PAGE_SIZES = [5, 10, 25, 50, 100] as const;
 
 export function CatalogPage() {
-  const [sellerFilter, setSellerFilter] = useState("");
-  const [appliedSeller, setAppliedSeller] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSeller = searchParams.get("sellerId") ?? "";
+  const [sellerFilter, setSellerFilter] = useState(urlSeller);
+  const [appliedSeller, setAppliedSeller] = useState(urlSeller);
   const [pageSize, setPageSize] = useState<number>(10);
+
+  // Sync state when the URL `sellerId` changes (e.g. user clicks
+  // "View this seller's catalog" from /sellers/:id while already on /).
+  useEffect(() => {
+    setSellerFilter(urlSeller);
+    setAppliedSeller(urlSeller);
+  }, [urlSeller]);
 
   const query = useProductsInfinite({ sellerId: appliedSeller, pageSize });
   const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, error } = query;
@@ -28,6 +37,10 @@ export function CatalogPage() {
             onSubmit={(e) => {
               e.preventDefault();
               setAppliedSeller(sellerFilter);
+              const next = new URLSearchParams(searchParams);
+              if (sellerFilter) next.set("sellerId", sellerFilter);
+              else next.delete("sellerId");
+              setSearchParams(next, { replace: true });
             }}
           >
             <label className="flex flex-col text-sm">
@@ -44,7 +57,10 @@ export function CatalogPage() {
               <span className="text-slate-600 font-medium">Page size</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isInteger(n) && n > 0) setPageSize(n);
+                }}
                 className="mt-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
               >
                 {PAGE_SIZES.map((n) => (
@@ -63,6 +79,9 @@ export function CatalogPage() {
               onClick={() => {
                 setSellerFilter("");
                 setAppliedSeller("");
+                const next = new URLSearchParams(searchParams);
+                next.delete("sellerId");
+                setSearchParams(next, { replace: true });
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
             >

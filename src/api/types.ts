@@ -90,3 +90,52 @@ export interface Order {
   createdAt?: string;
   shippedAt?: string;
 }
+
+/**
+ * Marketplace seller. PK = `/id`. Mirrors `chronomart-app/.../domain/Seller.java`.
+ * `rating` is 0..5 (one decimal). `joinedAt` is ISO-8601.
+ */
+export interface Seller {
+  id: string;
+  name: string;
+  country?: string;
+  rating?: number;
+  joinedAt?: string;
+}
+
+/**
+ * Request body for `POST /api/v1/vector/search`. Mirrors `VectorSearchRequest`.
+ * `vector.length` must equal the container's embedding dimension (1024 for
+ * `ProductVectors`). `k` is 1..100; backend applies a default if omitted.
+ */
+export interface VectorSearchRequest {
+  container: string;
+  vector: number[];
+  k?: number;
+}
+
+/**
+ * One row in `VectorSearchResponse.matches`. `score` is the raw `VectorDistance()`
+ * value — its meaning depends on the container's distance function. For COSINE
+ * (used by `ProductVectors`) it is cosine similarity (~1.0 for an exact match);
+ * results are always ordered most-similar-first regardless of the underlying sign.
+ * `document` includes the full raw record (including the embedding) for inspection.
+ */
+export interface VectorMatch {
+  id: string;
+  productId?: string;
+  sellerId?: string;
+  name?: string;
+  score?: number;
+  document?: Record<string, unknown>;
+}
+
+/**
+ * Response body for `POST /api/v1/vector/search`. `requestCharge` is the RU consumed
+ * by the underlying `byPage().next()` call — a wildly higher value than expected for
+ * a small container is a signal the DiskANN index was not used.
+ */
+export interface VectorSearchResponse {
+  matches: VectorMatch[];
+  requestCharge: number;
+}
