@@ -1,11 +1,34 @@
 import { Link, useParams } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { useProduct } from "../hooks/useProducts";
+import { useCart, useCartUpsert } from "../hooks/useCart";
+import { useCustomerId } from "../hooks/useCustomerId";
 import { formatPrice } from "../lib/format";
+import { useState } from "react";
 
 export function ProductDetailPage() {
   const { sellerId, id } = useParams<{ sellerId: string; id: string }>();
   const { data: product, error, isLoading } = useProduct(sellerId, id);
+  const customerId = useCustomerId();
+  const cartQuery = useCart(customerId);
+  const cartUpsert = useCartUpsert(customerId);
+  const [addQty, setAddQty] = useState<number>(1);
+
+  function addToCart() {
+    if (!product) return;
+    const existing = cartQuery.data?.items ?? [];
+    const idx = existing.findIndex((it) => it.productId === product.id);
+    const items =
+      idx >= 0
+        ? existing.map((it, i) => (i === idx ? { ...it, qty: it.qty + addQty } : it))
+        : [...existing, { productId: product.id, qty: addQty, addedAt: new Date().toISOString() }];
+    cartUpsert.mutate({
+      id: customerId,
+      customerId,
+      items,
+      updatedAt: new Date().toISOString()
+    });
+  }
 
   return (
     <PageShell title="Product Detail" feature="pointCrud">
@@ -82,6 +105,40 @@ export function ProductDetailPage() {
                   </dl>
                 </div>
               )}
+
+              <div className="mt-6 flex flex-wrap items-end gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <label className="flex flex-col text-xs">
+                  <span className="text-slate-600 font-medium">Qty</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={addQty}
+                    onChange={(e) => setAddQty(Math.max(1, Number(e.target.value) || 1))}
+                    className="mt-1 w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={addToCart}
+                  disabled={cartUpsert.isPending}
+                  className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {cartUpsert.isPending ? "Adding…" : "Add to cart"}
+                </button>
+                <div className="text-xs text-slate-500">
+                  customer <code className="rounded bg-white px-1">{customerId}</code>
+                </div>
+                {cartUpsert.isSuccess && !cartUpsert.isPending && (
+                  <Link to="/cart" className="text-xs text-brand-700 hover:underline">
+                    View cart →
+                  </Link>
+                )}
+                {cartUpsert.error && (
+                  <span className="text-xs text-red-700">
+                    {String(cartUpsert.error.message)}
+                  </span>
+                )}
+              </div>
             </section>
 
             <aside className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
