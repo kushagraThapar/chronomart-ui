@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { useProductsInfinite } from "../hooks/useProducts";
 import type { Product } from "../api/types";
+import { formatPrice } from "../lib/format";
 
 const PAGE_SIZES = [5, 10, 25, 50, 100] as const;
 
@@ -12,7 +13,7 @@ export function CatalogPage() {
   const [pageSize, setPageSize] = useState<number>(10);
 
   const query = useProductsInfinite({ sellerId: appliedSeller, pageSize });
-  const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, refetch, error } = query;
+  const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, error } = query;
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];
   const pageCount = data?.pages.length ?? 0;
@@ -62,7 +63,6 @@ export function CatalogPage() {
               onClick={() => {
                 setSellerFilter("");
                 setAppliedSeller("");
-                refetch();
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
             >
@@ -169,17 +169,5 @@ function ProductCard({ product }: { product: Product }) {
       )}
     </Link>
   );
-}
-
-function formatPrice(amount: number, currency: string | undefined): string {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency ?? "USD",
-      maximumFractionDigits: 2
-    }).format(amount);
-  } catch {
-    return `${currency ?? "USD"} ${amount.toFixed(2)}`;
-  }
 }
 

@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { useProduct } from "../hooks/useProducts";
+import { formatPrice } from "../lib/format";
 
 export function ProductDetailPage() {
   const { sellerId, id } = useParams<{ sellerId: string; id: string }>();
@@ -114,18 +115,6 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dd className="text-slate-800 text-right break-all">{children}</dd>
     </div>
   );
-}
-
-function formatPrice(amount: number, currency: string | undefined): string {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency ?? "USD",
-      maximumFractionDigits: 2
-    }).format(amount);
-  } catch {
-    return `${currency ?? "USD"} ${amount.toFixed(2)}`;
-  }
 }
 
 function formatAttr(value: unknown): string {

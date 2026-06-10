@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
+import type { ApiError } from "../api/client";
 import type { Page, Product } from "../api/types";
 import { useSelectedSdk } from "./useCapabilities";
 
@@ -49,7 +50,7 @@ export function useProduct(sellerId: string | undefined, id: string | undefined)
       } catch (e) {
         // ApiError thrown by api() carries .status; treat 404 as "no product" so the
         // detail page can render its own empty state rather than a generic error.
-        const err = e as { status?: number };
+        const err = e as ApiError;
         if (err?.status === 404) return null;
         throw e;
       }
