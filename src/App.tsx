@@ -47,7 +47,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         <Routes>
           <Route path="/" element={<CatalogPage />} />
-          <Route path="/products/:id" element={<ProductDetailPage />} />
+          <Route path="/products/:sellerId/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
