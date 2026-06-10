@@ -1,0 +1,91 @@
+name: UI CI
+
+# Single-stage CI for the React + Vite UI.
+#
+#   build — install (npm ci against the committed lockfile), lint
+#           (`tsc -b --pretty` per package.json), and production build
+#           (`vite build`). All three steps run in one job because each
+#           is fast (<10s) and shares the same node_modules — splitting
+#           would force a redundant install.
+#
+# Path filters keep CI focused: only changes that can break the build
+# trigger it (sources, configs, lockfile, the workflow itself).
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - 'postcss.config.js'
+      - '.github/workflows/ui-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - 'postcss.config.js'
+      - '.github/workflows/ui-ci.yml'
+  # Allow ad-hoc manual runs from the Actions tab (useful for debugging CI
+  # without pushing a commit that touches a path-filtered file).
+  workflow_dispatch:
+
+# Least-privilege token: this workflow only reads the repository.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref (e.g. successive PR pushes).
+concurrency:
+  group: ui-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Lint + build
+    runs-on: ubuntu-latest
+    # Budget: ~30s cold npm ci + ~5s tsc + ~5s vite build ≈ 40s.
+    # 10 min gives ample buffer for npm registry slowness or runner cold start.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          # Node 22 is the active LTS line (matches what Vite 6 + React 18
+          # are tested against). The dev machine may be on a newer version
+          # but CI pins to LTS for stability.
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` requires package-lock.json to match package.json exactly,
+      # which is what we want for reproducible CI builds.
+      - name: Install dependencies
+        run: npm ci
+
+      # `lint` is mapped to `tsc -b --pretty` in package.json — strict
+      # TypeScript type-check across the workspace.
+      - name: Lint (tsc)
+        run: npm run lint
+
+      - name: Build (vite)
+        run: npm run build
+
+      # Upload the production bundle so reviewers can inspect bundle size
+      # changes / download a built artifact for manual smoke without
+      # cloning + building locally.
+      - name: Upload dist artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
