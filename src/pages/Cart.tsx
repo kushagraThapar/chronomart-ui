@@ -59,8 +59,7 @@ export function CartPage() {
   }
 
   function setQty(productId: string, qty: number) {
-    const nextQty = Number.isInteger(qty) && qty > 0 ? qty : 1;
-    setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, qty: nextQty } : i)));
+    setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, qty } : i)));
   }
 
   function save() {
@@ -142,7 +141,10 @@ export function CartPage() {
                         type="number"
                         min={1}
                         value={item.qty}
-                        onChange={(e) => setQty(item.productId, Number(e.target.value))}
+                        onChange={(e) => {
+                          const nextQty = parsePositiveInt(e.target.value);
+                          if (nextQty !== null) setQty(item.productId, nextQty);
+                        }}
                         className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
                       />
                     </td>
@@ -301,6 +303,11 @@ function sameItems(a: CartItem[], b: CartItem[]): boolean {
     if (a[i].productId !== b[i].productId || a[i].qty !== b[i].qty) return false;
   }
   return true;
+}
+
+function parsePositiveInt(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function ErrorPanel({ title, message }: { title: string; message: string }) {
