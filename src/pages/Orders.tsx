@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
 import { useRunQuery } from "../hooks/useRunQuery";
 import { setCustomerId, useCustomerId } from "../hooks/useCustomerId";
@@ -25,21 +26,25 @@ export function OrdersPage() {
   const runQuery = useRunQuery<Order>();
 
   const ymValid = yearMonth === "" || YM_PATTERN.test(yearMonth);
-  const customerValid = customerId.trim().length > 0;
+  const customerValid = draftCustomerId.trim().length > 0;
+
+  // Track the customer ID that was actually used for the currently displayed page set,
+  // so loadNextPage always continues the same query even if the user edits the input.
+  const [appliedCustomerId, setAppliedCustomerId] = useState(customerId);
 
   const routing = useMemo(() => {
     if (yearMonth && ymValid) return "HPK prefix (customerId + yearMonth)";
     return "HPK prefix (customerId)";
   }, [yearMonth, ymValid]);
 
-  function buildRequest(cont: string | null): QueryRequest {
-    const params: QueryRequest["parameters"] = [{ name: "@cid", value: customerId }];
+  function buildRequest(cont: string | null, cid: string): QueryRequest {
+    const params: QueryRequest["parameters"] = [{ name: "@cid", value: cid }];
     let sql = "SELECT * FROM c WHERE c.customerId = @cid";
-    let pk: (string | number | boolean)[] = [customerId];
+    let pk: (string | number | boolean)[] = [cid];
     if (yearMonth) {
       sql += " AND c.yearMonth = @ym";
       params.push({ name: "@ym", value: yearMonth });
-      pk = [customerId, yearMonth];
+      pk = [cid, yearMonth];
     }
     return {
       container: "Orders",
@@ -51,19 +56,20 @@ export function OrdersPage() {
     };
   }
 
-  function loadFirstPage() {
-    if (!customerValid || !ymValid) return;
+  function loadFirstPage(cid: string) {
+    if (!cid.trim() || !ymValid) return;
+    setAppliedCustomerId(cid);
     setOrders([]);
     setPages([]);
     setContinuation(null);
-    runQuery.mutate(buildRequest(null), {
+    runQuery.mutate(buildRequest(null, cid), {
       onSuccess: (res) => acceptPage(res, false)
     });
   }
 
   function loadNextPage() {
     if (!continuation) return;
-    runQuery.mutate(buildRequest(continuation), {
+    runQuery.mutate(buildRequest(continuation, appliedCustomerId), {
       onSuccess: (res) => acceptPage(res, true)
     });
   }
@@ -87,8 +93,10 @@ export function OrdersPage() {
             className="grid gap-3 sm:grid-cols-[1fr_140px_100px_auto] sm:items-end"
             onSubmit={(e) => {
               e.preventDefault();
-              if (draftCustomerId !== customerId) setCustomerId(draftCustomerId);
-              loadFirstPage();
+              const cid = draftCustomerId.trim();
+              if (!cid) return;
+              if (cid !== customerId) setCustomerId(cid);
+              loadFirstPage(cid);
             }}
           >
             <label className="flex flex-col text-sm">
@@ -298,13 +306,5 @@ function StatusBadge({ status }: { status?: Order["status"] }) {
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
       {status ?? "?"}
     </span>
-  );
-}
-
-function ErrorPanel({ title, message }: { title: string; message: string }) {
-  return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-      <strong>{title}:</strong> {message}
-    </section>
   );
 }

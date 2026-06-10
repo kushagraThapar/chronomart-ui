@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
 import { useCart, useCartUpsert } from "../hooks/useCart";
 import { useSelectedSdk } from "../hooks/useCapabilities";
@@ -308,12 +309,4 @@ function sameItems(a: CartItem[], b: CartItem[]): boolean {
 function parsePositiveInt(value: string): number | null {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function ErrorPanel({ title, message }: { title: string; message: string }) {
-  return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-      <strong>{title}:</strong> {message}
-    </section>
-  );
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
 import { useRunQuery } from "../hooks/useRunQuery";
 import { useReviewUpsert } from "../hooks/useReviewUpsert";
@@ -328,7 +329,7 @@ function WriteReviewSection({
           {upsert.isSuccess && !upsert.isPending && (
             <span className="text-sm text-emerald-700">Saved.</span>
           )}
-          <Link to={`/?sellerId=`} className="ml-auto text-xs text-brand-700 hover:underline">
+          <Link to="/" className="ml-auto text-xs text-brand-700 hover:underline">
             ← Find more products
           </Link>
         </div>
@@ -349,12 +350,4 @@ function generateReviewId(): string {
     return `rev-${crypto.randomUUID()}`;
   }
   return `rev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function ErrorPanel({ title, message }: { title: string; message: string }) {
-  return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-      <strong>{title}:</strong> {message}
-    </section>
-  );
 }
