@@ -139,3 +139,48 @@ export interface VectorSearchResponse {
   matches: VectorMatch[];
   requestCharge: number;
 }
+
+/**
+ * Product review. PK = `/productId`. Mirrors `chronomart-app/.../domain/Review.java`.
+ * `rating` is an integer 1..5. The container is queried via `/api/v1/queries/run`
+ * (no list endpoint); writes go through `PUT /api/v1/reviews/{productId}/{id}`.
+ */
+export interface Review {
+  id: string;
+  productId: string;
+  customerId: string;
+  rating: number;
+  title?: string;
+  body?: string;
+  createdAt?: string;
+}
+
+/**
+ * Request body for `POST /api/v1/queries/run`. Mirrors `QueryRequest`. `partitionKey`
+ * accepts either a single string (single-level PK) or an array of strings/numbers/
+ * booleans for hierarchical PKs. `enableCrossPartition` is opt-in (default false);
+ * the backend rejects requests with neither `partitionKey` nor `enableCrossPartition=true`.
+ */
+export interface QueryRequest {
+  container: string;
+  query: string;
+  parameters?: { name: string; value: unknown }[];
+  partitionKey?: string | (string | number | boolean)[];
+  pageSize?: number;
+  continuation?: string | null;
+  enableCrossPartition?: boolean;
+  maxConcurrency?: number;
+}
+
+/**
+ * Response body for `POST /api/v1/queries/run`. `items` is `Object[]` on the wire
+ * (the backend types it as `Object` so it can return both document-shaped maps and
+ * scalar projections like `SELECT VALUE COUNT(1) FROM c`); callers narrow per query.
+ * `requestCharge` is the RU consumed by this single round-trip page.
+ */
+export interface QueryResponse<T = unknown> {
+  items: T[];
+  continuation?: string | null;
+  requestCharge?: number;
+  diagnostics?: Record<string, unknown>;
+}

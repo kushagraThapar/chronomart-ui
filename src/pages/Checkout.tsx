@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
 import { formatPrice } from "../lib/format";
 import { useCart, useCartUpsert } from "../hooks/useCart";
@@ -302,14 +303,6 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
         {value}
       </code>
     </div>
-  );
-}
-
-function ErrorPanel({ title, message }: { title: string; message: string }) {
-  return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-      <strong>{title}:</strong> {message}
-    </section>
   );
 }
 
