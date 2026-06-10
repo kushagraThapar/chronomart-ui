@@ -184,3 +184,53 @@ export interface QueryResponse<T = unknown> {
   requestCharge?: number;
   diagnostics?: Record<string, unknown>;
 }
+
+/**
+ * One row from `GET /api/v1/_meta/diagnostics`. Mirrors `DiagnosticsEntry`. The
+ * SDK-specific `diagnostics` payload is a free-form map; common keys include
+ * `database`, `container`, `resourceType`, `isPointOperation`, `retryCount`,
+ * `regions[]`, `isFailure`, `subStatusCode`.
+ */
+export interface DiagnosticsEntry {
+  timestamp: string;
+  operation: string;
+  durationMs?: number;
+  requestCharge?: number;
+  statusCode?: number;
+  activityId?: string;
+  diagnostics?: Record<string, unknown>;
+}
+
+/**
+ * Feed range as exposed by `GET /api/v1/_meta/feed-ranges?container=X`. Only `opaque`
+ * is populated today — `id/minInclusive/maxExclusive` are reserved for future
+ * internal-SDK introspection.
+ */
+export interface FeedRangeDto {
+  id?: string | null;
+  minInclusive?: string | null;
+  maxExclusive?: string | null;
+  opaque?: string;
+}
+
+/**
+ * `GET /api/v1/_meta/caches` response. `error` on a `ContainerCacheEntry` means the
+ * container wasn't readable at snapshot time (most common: not yet provisioned).
+ */
+export interface CacheContainerEntry {
+  database?: string;
+  container: string;
+  rid?: string | null;
+  snapshotAt?: string;
+  error?: string | null;
+}
+
+export interface CachePkRangeEntry {
+  containerRid?: string;
+  ranges: FeedRangeDto[];
+}
+
+export interface CacheSnapshot {
+  pkRangeCache: CachePkRangeEntry[];
+  containerCache: CacheContainerEntry[];
+}
