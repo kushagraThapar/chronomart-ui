@@ -3,6 +3,8 @@ import { api } from "../api/client";
 import type { WorkloadProgress, WorkloadSpec } from "../api/types";
 import { useSelectedSdk } from "./useCapabilities";
 
+const TERMINAL_STATUSES = new Set(["COMPLETED", "STOPPED", "FAILED"]);
+
 /**
  * `POST /api/v1/workloads/run` — starts a run, returns `{runId,name,status}`.
  * Invalidates the runs list and active-run query on success so the UI immediately
@@ -25,17 +27,18 @@ export function useStartWorkload() {
 }
 
 /**
- * `GET /api/v1/workloads/{runId}` — live progress. `refetchIntervalMs` enables polling
- * while the run is in flight; the caller flips it to `false` once status is terminal so
- * we stop hammering the backend after the run ends.
+ * `GET /api/v1/workloads/{runId}` — live progress. Polls at `pollMs` until the
+ * response itself reports a terminal status (`COMPLETED`, `STOPPED`, `FAILED`),
+ * so polling stops as soon as the run ends without waiting for a separate list refresh.
  */
-export function useWorkloadProgress(runId: string | null, refetchIntervalMs: number | false) {
+export function useWorkloadProgress(runId: string | null, pollMs: number) {
   const sdk = useSelectedSdk();
   return useQuery<WorkloadProgress>({
     queryKey: ["workload-progress", sdk, runId],
     enabled: !!runId,
     queryFn: () => api<WorkloadProgress>(`/workloads/${runId}`, { sdk }),
-    refetchInterval: refetchIntervalMs,
+    refetchInterval: (query) =>
+      !runId || TERMINAL_STATUSES.has(query.state.data?.status ?? "") ? false : pollMs,
     staleTime: 0
   });
 }

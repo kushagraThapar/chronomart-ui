@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
+import { Stat } from "../components/Stat";
 import { isApiError } from "../api/client";
 import type { WorkloadProgress, WorkloadSpec } from "../api/types";
 import {
@@ -23,7 +24,6 @@ import {
 } from "../hooks/useWorkloads";
 
 const PROGRESS_POLL_MS = 1_000;
-const TERMINAL_STATUSES = new Set(["COMPLETED", "STOPPED", "FAILED"]);
 
 // Built-in presets — mirrors infra/workloads/*.json. The hpk-hotspot, vector-throughput,
 // and bulk-ingest entries target ops PR2 will light up (hpkPointRead, vectorSearch, bulk);
@@ -102,12 +102,7 @@ export function WorkloadsPage() {
   const stopMut = useStopWorkload();
   const runs = useWorkloadRuns();
 
-  const activeProgress = useWorkloadProgress(
-    activeRunId,
-    activeRunId && !TERMINAL_STATUSES.has(progressStatus(runs.data, activeRunId))
-      ? PROGRESS_POLL_MS
-      : false
-  );
+  const activeProgress = useWorkloadProgress(activeRunId, PROGRESS_POLL_MS);
 
   function loadPreset(name: string) {
     const preset = PRESETS[name];
@@ -150,6 +145,7 @@ export function WorkloadsPage() {
         <ActiveRunPanel
           activeRunId={activeRunId}
           progress={activeProgress.data ?? null}
+          isLoading={activeProgress.isLoading}
           error={activeProgress.error}
           onStop={() => activeRunId && stopMut.mutate(activeRunId)}
           isStopping={stopMut.isPending}
@@ -164,11 +160,6 @@ export function WorkloadsPage() {
       </div>
     </PageShell>
   );
-}
-
-function progressStatus(runs: WorkloadProgress[] | undefined, runId: string | null): string {
-  if (!runId || !runs) return "RUNNING";
-  return runs.find((r) => r.runId === runId)?.status ?? "RUNNING";
 }
 
 function SpecEditorPanel({
@@ -226,7 +217,7 @@ function SpecEditorPanel({
         <button
           type="button"
           onClick={onStart}
-          disabled={isStarting}
+          disabled={isStarting || !!parseError}
           className="rounded-md bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-300"
         >
           {isStarting ? "Starting…" : "Start workload"}
@@ -242,12 +233,14 @@ function SpecEditorPanel({
 function ActiveRunPanel({
   activeRunId,
   progress,
+  isLoading,
   error,
   onStop,
   isStopping
 }: {
   activeRunId: string | null;
   progress: WorkloadProgress | null;
+  isLoading: boolean;
   error: Error | null;
   onStop: () => void;
   isStopping: boolean;
@@ -292,6 +285,10 @@ function ActiveRunPanel({
         <div className="mt-3">
           <ErrorPanel title="Progress" message={renderApiError(error)} />
         </div>
+      )}
+
+      {isLoading && !progress && (
+        <p className="mt-3 text-sm text-slate-500">Loading…</p>
       )}
 
       {progress && (
@@ -517,25 +514,6 @@ function StatusBadge({ status }: { status: WorkloadProgress["status"] }) {
   return (
     <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${palette[status] ?? palette.PENDING}`}>
       {status}
-    </span>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  accent
-}: {
-  label: string;
-  value: string;
-  accent?: "red";
-}) {
-  return (
-    <span className="inline-flex flex-col rounded bg-slate-50 px-2 py-1.5">
-      <span className="text-[10px] uppercase tracking-wide text-slate-500">{label}</span>
-      <span className={`font-mono text-sm ${accent === "red" ? "text-red-700" : "text-slate-800"}`}>
-        {value}
-      </span>
     </span>
   );
 }
