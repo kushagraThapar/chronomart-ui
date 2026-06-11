@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -11,11 +11,15 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { CachesDiff } from "../components/CachesDiff";
+import { CachesPanel } from "../components/CachesPanel";
+import { DiagnosticsPanel } from "../components/DiagnosticsPanel";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
 import { Stat } from "../components/Stat";
-import { isApiError } from "../api/client";
-import type { WorkloadProgress, WorkloadSpec } from "../api/types";
+import { api, isApiError } from "../api/client";
+import type { CacheSnapshot, WorkloadProgress, WorkloadSpec } from "../api/types";
+import { useSelectedSdk } from "../hooks/useCapabilities";
 import {
   useStartWorkload,
   useStopWorkload,
@@ -24,6 +28,10 @@ import {
 } from "../hooks/useWorkloads";
 
 const PROGRESS_POLL_MS = 1_000;
+const TERMINAL_STATUSES = new Set(["COMPLETED", "STOPPED", "FAILED"]);
+// Last-N diagnostic entries to surface inside an ActiveRunPanel — small enough to keep
+// the embedded view readable, large enough to catch the most recent failures or slow ops.
+const EMBEDDED_DIAGNOSTICS_LAST = 20;
 
 // Built-in presets — mirrors infra/workloads/*.json. The hpk-hotspot, vector-throughput,
 // and bulk-ingest entries target ops PR2 will light up (hpkPointRead, vectorSearch, bulk);
@@ -92,17 +100,50 @@ const PRESETS: Record<string, WorkloadSpec> = {
 };
 
 export function WorkloadsPage() {
+  const sdk = useSelectedSdk();
   const [specText, setSpecText] = useState<string>(() =>
     JSON.stringify(PRESETS["hot-seller-mix"], null, 2)
   );
   const [parseError, setParseError] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
+  // Cache snapshots captured at run boundaries — see the "What this workload warmed"
+  // diff in ActiveRunPanel. Tied to a specific runId so switching to a recent run from
+  // RecentRunsPanel doesn't surface a stale diff from a previous run.
+  const [snapshotRunId, setSnapshotRunId] = useState<string | null>(null);
+  const [preRunSnapshot, setPreRunSnapshot] = useState<CacheSnapshot | null>(null);
+  const [postRunSnapshot, setPostRunSnapshot] = useState<CacheSnapshot | null>(null);
+  const postCapturedRef = useRef<string | null>(null);
+
   const startMut = useStartWorkload();
   const stopMut = useStopWorkload();
   const runs = useWorkloadRuns();
 
   const activeProgress = useWorkloadProgress(activeRunId, PROGRESS_POLL_MS);
+
+  // Containers actually touched by this run — used to scope the embedded diagnostics
+  // tray and cache diff so they ignore noise from other backends/pages.
+  const activeContainers = useMemo<string[]>(() => {
+    const fromSteps = activeProgress.data?.byStep.map((s) => s.container) ?? [];
+    return Array.from(new Set(fromSteps));
+  }, [activeProgress.data]);
+
+  // Post-run snapshot capture: fires once when status transitions to terminal for
+  // the run our pre-snapshot belongs to. `postCapturedRef` keeps it idempotent across
+  // re-renders so we don't spam the /_meta/caches endpoint after completion.
+  useEffect(() => {
+    const status = activeProgress.data?.status;
+    if (!status || !TERMINAL_STATUSES.has(status)) return;
+    if (!activeRunId || activeRunId !== snapshotRunId) return;
+    if (postCapturedRef.current === activeRunId) return;
+    postCapturedRef.current = activeRunId;
+    api<CacheSnapshot>("/_meta/caches", { sdk })
+      .then((snap) => setPostRunSnapshot(snap))
+      .catch(() => {
+        // Best-effort — diff just won't render if post-snapshot fails.
+        postCapturedRef.current = null;
+      });
+  }, [activeProgress.data?.status, activeRunId, snapshotRunId, sdk]);
 
   function loadPreset(name: string) {
     const preset = PRESETS[name];
@@ -112,7 +153,7 @@ export function WorkloadsPage() {
     }
   }
 
-  function start() {
+  async function start() {
     let spec: WorkloadSpec;
     try {
       spec = JSON.parse(specText) as WorkloadSpec;
@@ -121,8 +162,25 @@ export function WorkloadsPage() {
       return;
     }
     setParseError(null);
+
+    // Capture a fresh pre-run snapshot BEFORE the engine starts so the diff actually
+    // reflects what the workload warmed (not the snapshot itself). Best-effort: on
+    // failure we still start the run, just without a baseline for the diff.
+    let pre: CacheSnapshot | null = null;
+    try {
+      pre = await api<CacheSnapshot>("/_meta/caches", { sdk });
+    } catch {
+      pre = null;
+    }
+
     startMut.mutate(spec, {
-      onSuccess: (resp) => setActiveRunId(resp.runId)
+      onSuccess: (resp) => {
+        setActiveRunId(resp.runId);
+        setSnapshotRunId(resp.runId);
+        setPreRunSnapshot(pre);
+        setPostRunSnapshot(null);
+        postCapturedRef.current = null;
+      }
     });
   }
 
@@ -149,6 +207,10 @@ export function WorkloadsPage() {
           error={activeProgress.error}
           onStop={() => activeRunId && stopMut.mutate(activeRunId)}
           isStopping={stopMut.isPending}
+          activeContainers={activeContainers}
+          snapshotRunId={snapshotRunId}
+          preRunSnapshot={preRunSnapshot}
+          postRunSnapshot={postRunSnapshot}
         />
 
         <RecentRunsPanel
@@ -236,7 +298,11 @@ function ActiveRunPanel({
   isLoading,
   error,
   onStop,
-  isStopping
+  isStopping,
+  activeContainers,
+  snapshotRunId,
+  preRunSnapshot,
+  postRunSnapshot
 }: {
   activeRunId: string | null;
   progress: WorkloadProgress | null;
@@ -244,6 +310,10 @@ function ActiveRunPanel({
   error: Error | null;
   onStop: () => void;
   isStopping: boolean;
+  activeContainers: string[];
+  snapshotRunId: string | null;
+  preRunSnapshot: CacheSnapshot | null;
+  postRunSnapshot: CacheSnapshot | null;
 }) {
   if (!activeRunId) {
     return (
@@ -252,6 +322,10 @@ function ActiveRunPanel({
       </section>
     );
   }
+  const isRunning = progress?.status === "RUNNING";
+  // Cache diff is meaningful only for the run we captured pre-snapshot for; if the
+  // user picked a different run from RecentRunsPanel, drop the diff entirely.
+  const showCacheDiff = snapshotRunId === activeRunId && !!preRunSnapshot;
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
@@ -268,7 +342,7 @@ function ActiveRunPanel({
         </div>
         <div className="flex items-center gap-2">
           {progress && <StatusBadge status={progress.status} />}
-          {progress && progress.status === "RUNNING" && (
+          {isRunning && (
             <button
               type="button"
               onClick={onStop}
@@ -296,6 +370,44 @@ function ActiveRunPanel({
           <SummaryStrip progress={progress} />
           <Charts progress={progress} />
           <PerStepTable progress={progress} />
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {showCacheDiff && (
+              <CachesDiff
+                before={preRunSnapshot}
+                after={postRunSnapshot}
+                containerFilter={activeContainers}
+                title="What this run warmed (cache diff)"
+              />
+            )}
+            {showCacheDiff && postRunSnapshot && (
+              <CachesPanel
+                title="Post-run cache snapshot"
+                snapshot={postRunSnapshot}
+                containerFilter={activeContainers}
+                hideRefresh
+              />
+            )}
+          </div>
+
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+            <header className="flex flex-wrap items-baseline justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-700">
+                Diagnostics (last {EMBEDDED_DIAGNOSTICS_LAST}, filtered to this run&apos;s containers)
+              </h3>
+              <span className="text-[11px] text-slate-500">
+                {isRunning ? "auto-refreshes every 5s while running" : "snapshot at terminal state"}
+              </span>
+            </header>
+            <div className="mt-3">
+              <DiagnosticsPanel
+                mode="compact"
+                compactLast={EMBEDDED_DIAGNOSTICS_LAST}
+                autoRefresh={isRunning}
+                containerFilter={activeContainers}
+              />
+            </div>
+          </div>
         </>
       )}
     </section>
