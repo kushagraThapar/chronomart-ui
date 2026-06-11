@@ -234,3 +234,67 @@ export interface CacheSnapshot {
   pkRangeCache: CachePkRangeEntry[];
   containerCache: CacheContainerEntry[];
 }
+
+/**
+ * Workload runner DTOs — mirror `com.chronomart.web.dto.Workload*`. The `params` map on a
+ * step is intentionally untyped (`Record<string, unknown>`) because each op has its own
+ * required-keys contract (see `WorkloadEngine.validateStepParams` on the Java side).
+ */
+export interface WorkloadStep {
+  op: string;
+  container: string;
+  weight: number;
+  params: Record<string, unknown>;
+}
+
+export interface WorkloadSpec {
+  name: string;
+  durationSeconds: number;
+  concurrency: number;
+  rampSeconds?: number | null;
+  steps: WorkloadStep[];
+}
+
+export interface WorkloadOpStats {
+  op: string;
+  container: string;
+  count: number;
+  errorCount: number;
+  totalRu: number;
+  opsPerSec: number;
+  ruPerSec: number;
+  latencyMeanMs: number;
+  latencyP50Ms: number;
+  latencyP95Ms: number;
+  latencyP99Ms: number;
+  latencyMaxMs: number;
+}
+
+export interface WorkloadTimePoint {
+  timestamp: string;
+  elapsedSec: number;
+  ops: number;
+  errors: number;
+  ru: number;
+  latencyMeanMs: number;
+}
+
+/**
+ * Status discriminator from the backend: `PENDING | RUNNING | COMPLETED | STOPPED | FAILED`.
+ * `errorMessage` is only populated when status is `FAILED` (engine-level failure, not
+ * per-op errors which surface via `overall.errorCount`).
+ */
+export interface WorkloadProgress {
+  runId: string;
+  name: string;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "STOPPED" | "FAILED";
+  startedAt: string;
+  endedAt?: string | null;
+  elapsedSec: number;
+  plannedDurationSec: number;
+  concurrency: number;
+  overall: WorkloadOpStats;
+  byStep: WorkloadOpStats[];
+  timeSeries: WorkloadTimePoint[];
+  errorMessage?: string | null;
+}

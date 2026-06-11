@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "../components/PageShell";
 import { ErrorPanel } from "../components/ErrorPanel";
+import { Stat } from "../components/Stat";
 import { useCapabilities, useSelectedSdk } from "../hooks/useCapabilities";
 import {
   useCacheSnapshot,
@@ -427,25 +428,6 @@ function CacheRow({
       <td className="py-1 pr-3 font-mono text-[11px] text-slate-600">{entry.snapshotAt ?? "—"}</td>
       <td className="py-1 text-[11px] text-red-700">{entry.error ?? ""}</td>
     </tr>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  accent
-}: {
-  label: string;
-  value: string;
-  accent?: "red";
-}) {
-  const valueCls =
-    accent === "red" ? "text-red-700" : "text-slate-800";
-  return (
-    <span className="inline-flex flex-col rounded bg-slate-50 px-2 py-1">
-      <span className="text-[10px] uppercase tracking-wide text-slate-500">{label}</span>
-      <span className={`font-mono text-sm ${valueCls}`}>{value}</span>
-    </span>
   );
 }
 

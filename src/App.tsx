@@ -10,6 +10,7 @@ import { SellersPage } from "./pages/Sellers";
 import { SellerDetailPage } from "./pages/SellerDetail";
 import { VectorSearchPage } from "./pages/VectorSearch";
 import { AdminPage } from "./pages/Admin";
+import { WorkloadsPage } from "./pages/Workloads";
 
 const navItems = [
   { to: "/", label: "Catalog", end: true },
@@ -19,6 +20,7 @@ const navItems = [
   { to: "/orders", label: "Orders" },
   { to: "/reviews", label: "Reviews" },
   { to: "/vector", label: "Vector Search" },
+  { to: "/workloads", label: "Workloads" },
   { to: "/admin", label: "Admin" }
 ];
 
@@ -58,6 +60,7 @@ export default function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/vector" element={<VectorSearchPage />} />
+          <Route path="/workloads" element={<WorkloadsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </main>
