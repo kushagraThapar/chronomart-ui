@@ -29,6 +29,8 @@ import {
 
 const PROGRESS_POLL_MS = 1_000;
 const TERMINAL_STATUSES = new Set(["COMPLETED", "STOPPED", "FAILED"]);
+const POST_SNAPSHOT_MAX_RETRIES = 5;
+const POST_SNAPSHOT_RETRY_DELAY_MS = 1_000;
 // Last-N diagnostic entries to surface inside an ActiveRunPanel — small enough to keep
 // the embedded view readable, large enough to catch the most recent failures or slow ops.
 const EMBEDDED_DIAGNOSTICS_LAST = 20;
@@ -114,6 +116,8 @@ export function WorkloadsPage() {
   const [preRunSnapshot, setPreRunSnapshot] = useState<CacheSnapshot | null>(null);
   const [postRunSnapshot, setPostRunSnapshot] = useState<CacheSnapshot | null>(null);
   const postCapturedRef = useRef<string | null>(null);
+  const postRetryCountRef = useRef(0);
+  const postRetryTimerRef = useRef<number | null>(null);
 
   const startMut = useStartWorkload();
   const stopMut = useStopWorkload();
@@ -135,15 +139,50 @@ export function WorkloadsPage() {
     const status = activeProgress.data?.status;
     if (!status || !TERMINAL_STATUSES.has(status)) return;
     if (!activeRunId || activeRunId !== snapshotRunId) return;
+    if (postRetryCountRef.current >= POST_SNAPSHOT_MAX_RETRIES) return;
     if (postCapturedRef.current === activeRunId) return;
-    postCapturedRef.current = activeRunId;
-    api<CacheSnapshot>("/_meta/caches", { sdk })
-      .then((snap) => setPostRunSnapshot(snap))
-      .catch(() => {
-        // Best-effort — diff just won't render if post-snapshot fails.
-        postCapturedRef.current = null;
-      });
+    let cancelled = false;
+
+    const capturePostSnapshot = () => {
+      postCapturedRef.current = activeRunId;
+      api<CacheSnapshot>("/_meta/caches", { sdk })
+        .then((snap) => {
+          if (cancelled) return;
+          setPostRunSnapshot(snap);
+          postRetryCountRef.current = 0;
+        })
+        .catch(() => {
+          // Best-effort — diff just won't render if post-snapshot fails.
+          postCapturedRef.current = null;
+          if (cancelled) return;
+          if (postRetryCountRef.current >= POST_SNAPSHOT_MAX_RETRIES - 1) return;
+          postRetryCountRef.current += 1;
+          if (postRetryTimerRef.current !== null) {
+            window.clearTimeout(postRetryTimerRef.current);
+          }
+          postRetryTimerRef.current = window.setTimeout(capturePostSnapshot, POST_SNAPSHOT_RETRY_DELAY_MS);
+        });
+    };
+
+    capturePostSnapshot();
+    return () => {
+      cancelled = true;
+      if (postRetryTimerRef.current !== null) {
+        window.clearTimeout(postRetryTimerRef.current);
+        postRetryTimerRef.current = null;
+      }
+    };
   }, [activeProgress.data?.status, activeRunId, snapshotRunId, sdk]);
+
+  useEffect(
+    () => () => {
+      if (postRetryTimerRef.current !== null) {
+        window.clearTimeout(postRetryTimerRef.current);
+        postRetryTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   function loadPreset(name: string) {
     const preset = PRESETS[name];
@@ -179,7 +218,12 @@ export function WorkloadsPage() {
         setSnapshotRunId(resp.runId);
         setPreRunSnapshot(pre);
         setPostRunSnapshot(null);
+        postRetryCountRef.current = 0;
         postCapturedRef.current = null;
+        if (postRetryTimerRef.current !== null) {
+          window.clearTimeout(postRetryTimerRef.current);
+          postRetryTimerRef.current = null;
+        }
       }
     });
   }
