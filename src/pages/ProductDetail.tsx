@@ -18,10 +18,27 @@ export function ProductDetailPage() {
     if (!product) return;
     const existing = cartQuery.data?.items ?? [];
     const idx = existing.findIndex((it) => it.productId === product.id);
+    // Snapshot price + seller from the product at add-time so checkout can pre-fill the
+    // order line (OrderItem requires unitPriceUsd). Refresh the snapshot on re-add so an
+    // item added before this field existed gets healed to the current catalog price.
+    const snapshot = {
+      sellerId: product.sellerId,
+      unitPriceUsd: product.priceUsd
+    };
     const items =
       idx >= 0
-        ? existing.map((it, i) => (i === idx ? { ...it, qty: it.qty + addQty } : it))
-        : [...existing, { productId: product.id, qty: addQty, addedAt: new Date().toISOString() }];
+        ? existing.map((it, i) =>
+            i === idx ? { ...it, qty: it.qty + addQty, ...snapshot } : it
+          )
+        : [
+            ...existing,
+            {
+              productId: product.id,
+              qty: addQty,
+              addedAt: new Date().toISOString(),
+              ...snapshot
+            }
+          ];
     cartUpsert.mutate({
       id: customerId,
       customerId,

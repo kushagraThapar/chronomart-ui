@@ -26,14 +26,16 @@ export function CheckoutPage() {
       setUnitPrices((prev) => {
         const next: Record<string, number> = {};
         for (const item of cartQuery.data!.items) {
-          next[item.productId] = prev[item.productId] ?? 0;
+          // Seed from the cart's price snapshot the first time we see a line; once the
+          // user has touched it (prev has a value) their edit wins across refetches.
+          next[item.productId] = prev[item.productId] ?? item.unitPriceUsd ?? 0;
         }
         return next;
       });
       setSellerIds((prev) => {
         const next: Record<string, string> = {};
         for (const item of cartQuery.data!.items) {
-          next[item.productId] = prev[item.productId] ?? "";
+          next[item.productId] = prev[item.productId] ?? item.sellerId ?? "";
         }
         return next;
       });
@@ -208,8 +210,9 @@ export function CheckoutPage() {
           )}
           {cartQuery.data && cartQuery.data.items.length > 0 && items.some((i) => i.unitPriceUsd <= 0) && (
             <p className="mt-3 text-xs text-amber-700">
-              Set a unit price &gt; 0 for every line before placing the order. The harness
-              cart doesn't store prices — fill them in here.
+              Set a unit price &gt; 0 for every line before placing the order. Lines added
+              from a product page are pre-filled from the catalog snapshot; items added by
+              hand on the Cart page have no price and need one here.
             </p>
           )}
         </section>

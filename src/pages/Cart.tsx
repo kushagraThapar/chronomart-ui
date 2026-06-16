@@ -6,6 +6,7 @@ import { PageShell } from "../components/PageShell";
 import { useCart, useCartUpsert } from "../hooks/useCart";
 import { useSelectedSdk } from "../hooks/useCapabilities";
 import { setCustomerId, useCustomerId } from "../hooks/useCustomerId";
+import { formatPrice } from "../lib/format";
 import type { Cart as CartDoc, CartItem } from "../api/types";
 
 export function CartPage() {
@@ -129,6 +130,7 @@ export function CartPage() {
                 <tr className="text-left text-xs text-slate-500 uppercase tracking-wide">
                   <th className="py-1">Product ID</th>
                   <th className="py-1 w-32">Qty</th>
+                  <th className="py-1 w-28">Unit price</th>
                   <th className="py-1">Added</th>
                   <th className="py-1 w-20"></th>
                 </tr>
@@ -148,6 +150,9 @@ export function CartPage() {
                         }}
                         className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
                       />
+                    </td>
+                    <td className="py-2 text-xs tabular-nums text-slate-700">
+                      {item.unitPriceUsd != null ? formatPrice(item.unitPriceUsd, "USD") : "—"}
                     </td>
                     <td className="py-2 text-xs text-slate-500">{item.addedAt ?? "—"}</td>
                     <td className="py-2 text-right">
