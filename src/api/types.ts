@@ -42,11 +42,18 @@ export interface Page<T> {
 /**
  * Cart line item. Mirrors `chronomart-app/.../domain/CartItem.java`. The cart
  * itself is one document per customer; items are an inline array (no per-line PK).
+ *
+ * `sellerId` and `unitPriceUsd` are an optional price/seller snapshot captured when
+ * the item is added from the catalog (the product carries both), so checkout can
+ * pre-fill the order line without a second product lookup. Items added by hand on
+ * the Cart page omit them.
  */
 export interface CartItem {
   productId: string;
   qty: number;
   addedAt?: string;
+  sellerId?: string;
+  unitPriceUsd?: number;
 }
 
 /**
