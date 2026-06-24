@@ -17,6 +17,7 @@ import { DiagnosticsPanel } from "../components/DiagnosticsPanel";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { PageShell } from "../components/PageShell";
 import { Stat } from "../components/Stat";
+import { VerificationPanel } from "../components/VerificationPanel";
 import { api, isApiError } from "../api/client";
 import type { CacheSnapshot, WorkloadProgress, WorkloadSpec } from "../api/types";
 import { useSelectedSdk } from "../hooks/useCapabilities";
@@ -98,6 +99,17 @@ const PRESETS: Record<string, WorkloadSpec> = {
         }
       }
     ]
+  },
+  "verify-register": {
+    name: "verify-register",
+    durationSeconds: 20,
+    concurrency: 8,
+    rampSeconds: 0,
+    steps: [
+      { op: "pointUpsert", container: "Inventory", weight: 50, params: { pkField: "sellerId" } },
+      { op: "pointRead", container: "Inventory", weight: 50, params: {} }
+    ],
+    verification: { enabled: true, level: "session", keyspace: { prefix: "wlverify", size: 500 } }
   }
 };
 
@@ -415,6 +427,10 @@ function ActiveRunPanel({
           <Charts progress={progress} />
           <PerStepTable progress={progress} />
 
+          <div className="mt-4">
+            <VerificationPanel run={progress} />
+          </div>
+
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {showCacheDiff && (
               <CachesDiff
@@ -594,6 +610,24 @@ function PerStepTable({ progress }: { progress: WorkloadProgress }) {
   );
 }
 
+/** Recent-runs anomaly cell: a dash for non-verification runs, a green check for a clean
+ *  verification run, or a red/amber count when the oracle found anomalies. */
+function renderAnomalyCell(r: WorkloadProgress) {
+  if (!r.verificationLevel) {
+    return <span className="text-slate-300">—</span>;
+  }
+  const total = r.anomalySummary?.total ?? 0;
+  const errors = r.anomalySummary?.errorCount ?? 0;
+  if (total === 0) {
+    return <span className="font-semibold text-emerald-700">✓ clean</span>;
+  }
+  return (
+    <span className={`font-semibold tabular-nums ${errors > 0 ? "text-red-700" : "text-amber-700"}`}>
+      {total.toLocaleString()}
+    </span>
+  );
+}
+
 function RecentRunsPanel({
   runs,
   isLoading,
@@ -627,7 +661,8 @@ function RecentRunsPanel({
                 <th className="py-1 pr-3 text-right">Ops</th>
                 <th className="py-1 pr-3 text-right">Errors</th>
                 <th className="py-1 pr-3 text-right">Ops/s</th>
-                <th className="py-1 text-right">Total RU</th>
+                <th className="py-1 pr-3 text-right">Total RU</th>
+                <th className="py-1 text-right">Anomalies</th>
               </tr>
             </thead>
             <tbody>
@@ -648,7 +683,8 @@ function RecentRunsPanel({
                     {r.overall.errorCount}
                   </td>
                   <td className="py-1 pr-3 text-right tabular-nums">{r.overall.opsPerSec.toFixed(1)}</td>
-                  <td className="py-1 text-right tabular-nums">{r.overall.totalRu.toFixed(0)}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{r.overall.totalRu.toFixed(0)}</td>
+                  <td className="py-1 text-right">{renderAnomalyCell(r)}</td>
                 </tr>
               ))}
             </tbody>

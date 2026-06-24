@@ -260,6 +260,23 @@ export interface WorkloadSpec {
   concurrency: number;
   rampSeconds?: number | null;
   steps: WorkloadStep[];
+  verification?: WorkloadVerification | null;
+}
+
+/**
+ * Opt-in correctness-oracle config. Mirrors the Java `WorkloadVerification` DTO. When
+ * `enabled`, the run operates over an owned keyspace and every read/write is checked; the
+ * anomaly summary surfaces on `WorkloadProgress.anomalySummary`.
+ */
+export interface WorkloadVerification {
+  enabled?: boolean;
+  level?: "session" | "strong" | "bounded" | "eventual";
+  stalenessWindowMs?: number;
+  keyspace?: { prefix?: string; size?: number };
+  sampleRate?: number;
+  historyCap?: number;
+  failThreshold?: number;
+  seed?: number;
 }
 
 export interface WorkloadOpStats {
@@ -304,4 +321,29 @@ export interface WorkloadProgress {
   byStep: WorkloadOpStats[];
   timeSeries: WorkloadTimePoint[];
   errorMessage?: string | null;
+  verificationLevel?: string | null;
+  anomalySummary?: AnomalySummary | null;
+}
+
+/** One correctness anomaly. Mirrors the Java `WorkloadAnomaly` DTO. */
+export interface WorkloadAnomaly {
+  code: string;
+  severity: "ERROR" | "WARN";
+  op: string;
+  container: string;
+  key?: string | null;
+  detail?: string | null;
+  opSeqGlobal: number;
+  observedSeq?: number | null;
+  expectedSeq?: number | null;
+  atEpochMillis: number;
+}
+
+/** Roll-up of anomalies attached to a run. Mirrors the Java `AnomalySummary` DTO. */
+export interface AnomalySummary {
+  total: number;
+  errorCount: number;
+  warnCount: number;
+  byCode?: Record<string, number>;
+  samples?: WorkloadAnomaly[];
 }
