@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import type { WorkloadProgress, WorkloadSpec } from "../api/types";
+import type { WorkloadAnomaly, WorkloadProgress, WorkloadSpec } from "../api/types";
 import { useSelectedSdk } from "./useCapabilities";
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "STOPPED", "FAILED"]);
@@ -69,5 +69,27 @@ export function useStopWorkload() {
       qc.invalidateQueries({ queryKey: ["workload-progress", sdk, runId] });
       qc.invalidateQueries({ queryKey: ["workloads", sdk] });
     }
+  });
+}
+
+/**
+ * `GET /api/v1/workloads/{runId}/anomalies` — a page of correctness anomalies for a
+ * verification run. Enabled only when the run reported at least one anomaly (`hasAny`),
+ * so a clean run never fetches. Anomalies are append-only during a run, so we re-fetch
+ * while it's live and stop once it ends.
+ */
+export function useWorkloadAnomalies(
+  runId: string | null,
+  hasAny: boolean,
+  isLive: boolean,
+  limit = 100
+) {
+  const sdk = useSelectedSdk();
+  return useQuery<WorkloadAnomaly[]>({
+    queryKey: ["workload-anomalies", sdk, runId],
+    enabled: !!runId && hasAny,
+    queryFn: () => api<WorkloadAnomaly[]>(`/workloads/${runId}/anomalies?limit=${limit}`, { sdk }),
+    refetchInterval: isLive ? 2000 : false,
+    staleTime: 0
   });
 }
