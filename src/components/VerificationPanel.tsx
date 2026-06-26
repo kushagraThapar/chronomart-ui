@@ -137,6 +137,14 @@ export function VerificationPanel({ run }: { run: WorkloadProgress }) {
   );
 }
 
+/**
+ * How long to wait before revoking a blob URL created for a programmatic download.
+ * Browsers queue the download asynchronously after click(); revoking too soon (i.e.
+ * synchronously) races that queue in Firefox/Safari and can silently abort the download.
+ * 250 ms is well within the observed browser scheduling window across all major browsers.
+ */
+const DOWNLOAD_REVOKE_DELAY_MS = 250;
+
 /** Page the op-history artifact and save it as a JSON file (input to the offline analyzer). */
 async function downloadHistory(
   runId: string,
@@ -173,7 +181,7 @@ async function downloadHistory(
     document.body.removeChild(a);
     // Defer revocation: a synchronous revoke after click() races the browser's download
     // queue in Safari/Firefox and can silently abort the download.
-    setTimeout(() => URL.revokeObjectURL(url), 250);
+    setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_REVOKE_DELAY_MS);
   } catch (e) {
     setError(e instanceof Error ? e.message : String(e));
   } finally {
