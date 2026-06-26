@@ -150,8 +150,9 @@ async function downloadHistory(
     const all: unknown[] = [];
     let offset = 0;
     const limit = 5000;
-    // Page until a short page signals the end (matches the backend's max page size).
-    for (;;) {
+    // Cap pages to avoid an infinite loop if the backend misbehaves (200 × 5 000 = 1 M records).
+    const MAX_PAGES = 200;
+    for (let page = 0; page < MAX_PAGES; page++) {
       const chunk = await api<unknown[]>(
         `/workloads/${runId}/history?offset=${offset}&limit=${limit}`,
         { sdk }
@@ -165,8 +166,14 @@ async function downloadHistory(
     const a = document.createElement("a");
     a.href = url;
     a.download = `${runId}-history.json`;
+    // Append to the document before clicking — Firefox requires the element to be in the
+    // DOM for a programmatic click to trigger a file-save dialog.
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    // Defer revocation: a synchronous revoke after click() races the browser's download
+    // queue in Safari/Firefox and can silently abort the download.
+    setTimeout(() => URL.revokeObjectURL(url), 250);
   } catch (e) {
     setError(e instanceof Error ? e.message : String(e));
   } finally {
